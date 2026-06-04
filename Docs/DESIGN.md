@@ -1,7 +1,7 @@
 # Research Assistant — Design Document
 
 > A multi-agent research assistant TUI. Users bring their own API keys.
-> Built with Python + Textual. Published to PyPI.
+> Built with Python + Textual + LangGraph. Published to PyPI.
 
 ---
 
@@ -24,12 +24,14 @@
 
 ## Overview
 
-`research-assistant` is a terminal UI application that lets users run deep,
-multi-agent research queries against any major AI provider. A query fans out
-to a small team of specialized agents — one browses the web, one extracts
-and reads sources, one synthesizes findings, and one critiques the output.
-Results include tracked citations and can be exported to Markdown or PDF.
+`hive` is a terminal UI application that lets users run deep, multi-agent
+research queries against any major AI provider. A query fans out to a small
+team of specialized agents — one browses the web, one extracts and reads
+sources, one synthesizes findings, and one critiques the output. The agent
+pipeline is orchestrated by LangGraph, giving the system checkpointing,
+resumable runs, and clean conditional routing between nodes.
 
+Results include tracked citations and can be exported to Markdown or PDF.
 Users supply their own API keys for OpenAI, Anthropic, Google Gemini, and/or
 Ollama. Keys are stored locally in the OS config directory and managed
 entirely through the TUI — no manual file editing required.
@@ -82,8 +84,12 @@ entirely through the TUI — no manual file editing required.
 └─────────────────────────────────────────────────────┘
          │                        │
          ▼                        ▼
-   LiteLLM layer            SQLite (sessions,
- (OpenAI / Anthropic /       citations, history)
+   LangGraph pipeline        SQLite (sessions,
+   (StateGraph + nodes)       citations, history)
+         │
+         ▼
+   LiteLLM layer
+ (OpenAI / Anthropic /
   Gemini / Ollama)
          │
          ▼
@@ -95,19 +101,73 @@ The TUI layer is purely presentational. All business logic lives in `core/`.
 The `core/` layer has no Textual imports — it can be tested independently
 and later exposed as a library or REST API if needed.
 
+The LangGraph `StateGraph` is the execution engine for the entire agent
+pipeline. The TUI subscribes to LangGraph's event stream to update the
+agent panel and chat widget in real time as nodes execute.
+
 ---
 
 ## Agent System
 
 ### Roles
 
-| Agent | Responsibility |
-|---|---|
-| Orchestrator | Parses the query, creates a research plan, delegates subtasks, assembles final context |
-| Browser | Runs web searches, fetches and cleans page content, returns structured results |
-| Researcher | Reads browser output, extracts key facts and quotes, tags citations |
-| Synthesizer | Merges all researcher output into a coherent, well-structured answer |
-| Critic | Reviews the synthesis for gaps, weak citations, and unverified claims; suggests follow-ups |
+| Agent | LangGraph Node | Responsibility |
+|---|---|---|
+| Planner | `plan` | Parses the query, produces a list of 2–4 sub-queries, writes the plan into graph state |
+| Browser | `browse` | Runs web searches and scrapes pages for each sub-query; runs as a parallel fan-out |
+| Researcher | `research` | Reads all browser output, extracts key facts and quotes, tags citations |
+| Synthesizer | `synthesize` | Merges researcher notes into a coherent, well-structured answer |
+| Critic | `critique` | Reviews synthesis for gaps and weak citations; conditionally loops back to `plan` if quality is too low |
+
+### LangGraph State
+
+All nodes read from and write to a single typed state object:
+
+```python
+from typing import Annotated
+from langgraph.graph import add_messages
+
+class HiveState(TypedDict):
+    query: str                          # original user query
+    plan: list[str]                     # sub-queries from planner
+    browser_results: list[BrowserResult]
+    research_notes: str
+    synthesis: str
+    critique: CritiqueResult
+    citations: list[Citation]
+    token_usage: TokenUsage
+    iteration: int                      # tracks critique → replan loops
+    messages: Annotated[list, add_messages]
+```
+
+### Graph Definition
+
+```python
+from langgraph.graph import StateGraph, END
+
+graph = StateGraph(HiveState)
+
+graph.add_node("plan",      planner_node)
+graph.add_node("browse",    browser_node)      # fan-out via Send API
+graph.add_node("research",  researcher_node)
+graph.add_node("synthesize", synthesizer_node)
+graph.add_node("critique",  critic_node)
+
+graph.set_entry_point("plan")
+graph.add_edge("plan",      "browse")
+graph.add_edge("browse",    "research")
+graph.add_edge("research",  "synthesize")
+graph.add_edge("synthesize","critique")
+
+# Conditional edge: critic decides whether to loop or finish
+graph.add_conditional_edges(
+    "critique",
+    should_continue,            # returns "plan" or END
+    {"plan": "plan", END: END}
+)
+
+app = graph.compile(checkpointer=SqliteSaver(conn))
+```
 
 ### Execution Flow
 
@@ -115,48 +175,82 @@ and later exposed as a library or REST API if needed.
 User query
     │
     ▼
-Orchestrator  ──── creates plan (list of sub-queries)
-    │
-    ├── asyncio.gather() ──┬── Browser Agent (search + scrape)
-    │                      └── [parallel for each sub-query]
-    │
-    ▼
-Researcher Agent  ──── reads all browser output, extracts facts + citations
-    │
-    ▼
-Synthesizer Agent ──── writes final answer from researcher notes
-    │
-    ▼
-Critic Agent      ──── reviews, flags issues, appends follow-up suggestions
-    │
-    ▼
-TUI renders final output with inline citation markers [1][2][3]
+┌─────────┐     ┌──────────────────────────────┐
+│  plan   │────▶│  browse (parallel via Send)  │
+│  node   │     │  browser×N running at once   │
+└─────────┘     └──────────────┬───────────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │    research node    │
+                    └──────────┬──────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │   synthesize node   │
+                    └──────────┬──────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │    critique node    │
+                    └──────┬──────┬───────┘
+                           │      │
+                    quality OK   too weak (max 2 loops)
+                           │      │
+                          END   back to plan
 ```
 
-### Agent Interface
+### Parallel Browsing via Send API
 
-Every agent is an async class with a consistent interface:
+LangGraph's `Send` API fans out browser nodes in parallel — one per
+sub-query — without manual `asyncio.gather()`:
 
 ```python
-class BaseAgent:
-    system_prompt: str
-    tools: list[Tool]
+from langgraph.constants import Send
 
-    async def run(self, context: ResearchContext) -> AgentResult:
-        ...
+def plan_to_browse(state: HiveState):
+    return [Send("browse", {"sub_query": q}) for q in state["plan"]]
+
+graph.add_conditional_edges("plan", plan_to_browse)
 ```
 
-Agents communicate through a shared `ResearchContext` object that is
-read-only for all agents except the orchestrator. Each agent appends
-to its own output buffer; the orchestrator reads all buffers after
-`asyncio.gather()` completes.
+Each browser node runs concurrently and writes its result back into
+`browser_results` in the shared state.
 
-### Streaming
+### Checkpointing & Resumability
 
-All agents stream tokens via LiteLLM's async streaming interface. The
-TUI receives a token queue and updates the chat panel in real time.
-Each agent's status in the agent panel updates as it transitions
-through: `waiting → running → done / error`.
+The graph is compiled with `SqliteSaver` as the checkpointer. Every node
+transition is persisted. If a run fails mid-pipeline, it can be resumed
+from the last completed node rather than restarting from scratch. The
+same checkpoint store also powers session history in the TUI.
+
+```python
+from langgraph.checkpoint.sqlite import SqliteSaver
+
+conn = get_db_connection()   # from db/sessions.py
+app = graph.compile(checkpointer=SqliteSaver(conn))
+
+# Run with a thread_id — each session is a unique thread
+config = {"configurable": {"thread_id": session_id}}
+async for event in app.astream({"query": user_query}, config=config):
+    yield event   # streamed to TUI
+```
+
+### Streaming to the TUI
+
+LangGraph's `astream_events` emits fine-grained events as each node
+runs. The TUI subscribes to this stream and updates reactively:
+
+```python
+async for event in app.astream_events(input, config, version="v2"):
+    kind = event["event"]
+    if kind == "on_chain_start":
+        tui.set_agent_status(event["name"], "running")
+    elif kind == "on_chat_model_stream":
+        tui.append_token(event["data"]["chunk"].content)
+    elif kind == "on_chain_end":
+        tui.set_agent_status(event["name"], "done")
+```
+
+Each agent's status in the agent panel transitions through:
+`◌ waiting → ↻ running → ✓ done / ✗ error`.
 
 ---
 
@@ -349,7 +443,9 @@ after export completes.
 | Component | Library | Reason |
 |---|---|---|
 | TUI framework | `textual >= 0.60` | Best Python TUI; async-native; CSS styling |
+| Agent orchestration | `langgraph >= 0.2` | State graph, parallel fan-out, checkpointing, conditional loops |
 | AI providers | `litellm >= 1.40` | Single interface for all 4 providers |
+| LLM base | `langchain-core` | Required by LangGraph; provides message types and streaming |
 | Web search | `tavily-python` | Research-optimized results |
 | Search fallback | `duckduckgo-search` | No API key needed |
 | HTTP client | `httpx` | Async-first; used for scraping |
@@ -358,6 +454,7 @@ after export completes.
 | Markdown render | `markdown` + `rich` | In-TUI rendering and export |
 | Config files | `tomli-w` + `tomllib` | TOML read/write for config |
 | Config paths | `platformdirs` | OS-correct config/data directories |
+| Checkpointing | `langgraph-checkpoint-sqlite` | Persists graph state to SQLite |
 | Package manager | `uv` | Fast, modern Python tooling |
 | Distribution | PyPI | Primary install channel |
 
@@ -369,11 +466,14 @@ after export completes.
 
 ```toml
 [project]
-name = "research-assistant"
+name = "hive"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "textual>=0.60",
+    "langgraph>=0.2",
+    "langgraph-checkpoint-sqlite",
+    "langchain-core",
     "litellm>=1.40",
     "tavily-python",
     "duckduckgo-search",
@@ -387,7 +487,7 @@ dependencies = [
 ]
 
 [project.scripts]
-research-assistant = "research_assistant.main:main"
+hive = "hive.main:main"
 ```
 
 ---
@@ -395,13 +495,13 @@ research-assistant = "research_assistant.main:main"
 ## Project Structure
 
 ```
-research-assistant/
+hive/
 │
 ├── pyproject.toml
 ├── README.md
 ├── CHANGELOG.md                  ← maintained per instructions below
 │
-├── research_assistant/
+├── hive/
 │   ├── __init__.py
 │   ├── main.py                   # Entry point: load config → launch TUI
 │   │
@@ -409,16 +509,20 @@ research-assistant/
 │   │   ├── __init__.py
 │   │   ├── config.py             # Load/save config.toml, apply keys to env
 │   │   ├── llm.py                # LiteLLM wrapper: stream(), complete()
-│   │   ├── memory.py             # Context window management per session
 │   │   │
-│   │   ├── agents/
+│   │   ├── graph/
 │   │   │   ├── __init__.py
-│   │   │   ├── base.py           # BaseAgent, AgentResult, ResearchContext
-│   │   │   ├── orchestrator.py
-│   │   │   ├── browser.py
-│   │   │   ├── researcher.py
-│   │   │   ├── synthesizer.py
-│   │   │   └── critic.py
+│   │   │   ├── state.py          # HiveState TypedDict definition
+│   │   │   ├── graph.py          # StateGraph definition, compile(), edges
+│   │   │   └── router.py         # should_continue() conditional edge logic
+│   │   │
+│   │   ├── nodes/
+│   │   │   ├── __init__.py
+│   │   │   ├── planner.py        # plan node: breaks query into sub-queries
+│   │   │   ├── browser.py        # browse node: search + scrape
+│   │   │   ├── researcher.py     # research node: extract facts + citations
+│   │   │   ├── synthesizer.py    # synthesize node: write final answer
+│   │   │   └── critic.py         # critique node: review + conditional loop
 │   │   │
 │   │   └── tools/
 │   │       ├── __init__.py
@@ -438,7 +542,7 @@ research-assistant/
 │   │   │   └── history.py        # Past sessions
 │   │   │
 │   │   ├── widgets/
-│   │   │   ├── agent_panel.py    # Agent status tree
+│   │   │   ├── agent_panel.py    # Graph node status tree
 │   │   │   ├── chat.py           # Streaming message thread
 │   │   │   ├── citations.py      # Citation sidebar
 │   │   │   └── statusbar.py      # Model / token / cost
@@ -454,10 +558,12 @@ research-assistant/
 │   └── db/
 │       ├── __init__.py
 │       └── sessions.py           # SQLite: sessions, messages, citations
+│                                 # also used as LangGraph checkpoint store
 │
 └── tests/
     ├── test_config.py
-    ├── test_agents.py
+    ├── test_graph.py
+    ├── test_nodes.py
     ├── test_search.py
     └── test_export.py
 ```
@@ -551,51 +657,67 @@ shippable. Complete them in sequence within each phase.
 
 ---
 
-### Phase 4 — Agent Pipeline
+### Phase 4 — LangGraph Pipeline
 
-#### TASK-010 — Base agent + context
-- Implement `core/agents/base.py`:
-  - `ResearchContext` dataclass (query, plan, results buffer, citations, session_id)
-  - `AgentResult` dataclass (agent_name, output, citations_added, token_usage)
-  - `BaseAgent` abstract class with `run(context) -> AgentResult`
-- **Done when:** a mock agent subclass passes a round-trip test
+#### TASK-010 — Graph state + scaffold
+- Implement `core/graph/state.py`:
+  - Define `HiveState` TypedDict with all fields: `query`, `plan`, `browser_results`, `research_notes`, `synthesis`, `critique`, `citations`, `token_usage`, `iteration`, `messages`
+  - Define `BrowserResult`, `CritiqueResult`, `Citation`, `TokenUsage` dataclasses
+- Implement `core/graph/graph.py`:
+  - Wire the `StateGraph` with all nodes and edges (stubs OK at this stage)
+  - Compile with `SqliteSaver` checkpointer from `db/sessions.py`
+- **Done when:** graph compiles and runs through stub nodes without error
 
-#### TASK-011 — Browser agent
-- Implement `core/agents/browser.py`:
-  - Takes a sub-query string from orchestrator
-  - Calls search tool, then scraper on top N results
-  - Returns structured `BrowserResult` with cleaned page content
-- **Done when:** browser agent returns structured content for a test query
+#### TASK-011 — Planner node
+- Implement `core/nodes/planner.py`:
+  - Calls LLM with the user query
+  - Returns a list of 2–4 focused sub-queries written into `state["plan"]`
+  - Resets `iteration` counter to 0 on first run; increments on replan
+- **Done when:** planner returns a sensible plan list for 3 different test queries
 
-#### TASK-012 — Researcher agent
-- Implement `core/agents/researcher.py`:
-  - Reads browser output via LLM
-  - Extracts key facts, quotes, and data points
+#### TASK-012 — Browser node (parallel fan-out)
+- Implement `core/nodes/browser.py`:
+  - Receives a single `sub_query` via LangGraph `Send` API
+  - Calls search tool then scraper on top N results
+  - Returns `BrowserResult` appended into `state["browser_results"]`
+- Implement `core/graph/graph.py` fan-out edge using `Send`:
+  ```python
+  def plan_to_browse(state): 
+      return [Send("browse", {"sub_query": q}) for q in state["plan"]]
+  graph.add_conditional_edges("plan", plan_to_browse)
+  ```
+- **Done when:** multiple browser nodes run in parallel and all results land in state
+
+#### TASK-013 — Researcher node
+- Implement `core/nodes/researcher.py`:
+  - Reads all `browser_results` from state
+  - Calls LLM to extract key facts, quotes, and data points
   - Calls citation tracker for every sourced claim
-  - Returns `ResearchNotes` with cited markdown
-- **Done when:** researcher notes contain inline citation markers tied to real URLs
+  - Writes cited markdown notes into `state["research_notes"]`
+- **Done when:** research notes contain inline citation markers tied to real URLs
 
-#### TASK-013 — Orchestrator agent
-- Implement `core/agents/orchestrator.py`:
-  - Breaks user query into 2–4 sub-queries
-  - Fans out browser agents in parallel via `asyncio.gather()`
-  - Passes all results to researcher agent
-  - Manages overall `ResearchContext`
-- **Done when:** end-to-end pipeline runs from query → orchestrator → browser → researcher with real output
-
-#### TASK-014 — Synthesizer agent
-- Implement `core/agents/synthesizer.py`:
-  - Takes all researcher notes as input
-  - Writes a coherent, well-structured synthesis
-  - Preserves inline citation markers from researcher
+#### TASK-014 — Synthesizer node
+- Implement `core/nodes/synthesizer.py`:
+  - Reads `research_notes` from state
+  - Calls LLM to write a coherent, well-structured final answer
+  - Preserves citation markers inline
+  - Writes result into `state["synthesis"]`
 - **Done when:** synthesis reads as a clean, cited research answer
 
-#### TASK-015 — Critic agent
-- Implement `core/agents/critic.py`:
-  - Reviews synthesis for unsupported claims and logical gaps
-  - Outputs a structured critique with flagged sentences and confidence score
-  - Appends 2–3 suggested follow-up questions
-- **Done when:** critic correctly flags a deliberately weak test synthesis
+#### TASK-015 — Critic node + conditional loop
+- Implement `core/nodes/critic.py`:
+  - Reads `synthesis` from state
+  - Calls LLM to review for unsupported claims, gaps, and confidence
+  - Writes `CritiqueResult(issues, confidence, follow_ups)` into `state["critique"]`
+- Implement `core/graph/router.py`:
+  - `should_continue(state)` — returns `"plan"` if confidence is low AND
+    `iteration < 2`, otherwise returns `END`
+- Add conditional edge in `graph.py`:
+  ```python
+  graph.add_conditional_edges("critique", should_continue, 
+                               {"plan": "plan", END: END})
+  ```
+- **Done when:** low-quality synthesis triggers a replan loop; high-quality exits to END
 
 ---
 
@@ -603,9 +725,10 @@ shippable. Complete them in sequence within each phase.
 
 #### TASK-016 — Agent panel widget
 - Implement `tui/widgets/agent_panel.py`:
-  - Tree view of agent hierarchy with status icons: `◌ waiting`, `↻ running`, `✓ done`, `✗ error`
-  - Updates reactively as agents emit status events
-- **Done when:** agent statuses update live during a real query
+  - Tree view of graph nodes with status icons: `◌ waiting`, `↻ running`, `✓ done`, `✗ error`
+  - Driven by LangGraph `astream_events` — listens for `on_chain_start` and `on_chain_end` events keyed by node name
+  - Browser fan-out nodes shown as children: `browse[0]`, `browse[1]`, etc.
+- **Done when:** agent statuses update live during a real query driven by real graph events
 
 #### TASK-017 — Chat widget with streaming
 - Implement `tui/widgets/chat.py`:
@@ -631,19 +754,22 @@ shippable. Complete them in sequence within each phase.
 #### TASK-020 — Research screen assembly
 - Implement `tui/screens/research.py`:
   - Assembles all widgets into the full layout
-  - Wires query input → orchestrator → streaming output → agent panel updates
-  - `Ctrl+C` cancels in-flight query cleanly
-- **Done when:** full end-to-end query works through the complete TUI
+  - Wires query input → `graph.astream_events()` → streaming output + agent panel updates
+  - `Ctrl+C` cancels the in-flight graph run cleanly via task cancellation
+- **Done when:** full end-to-end query works through the complete TUI with live node status updates
 
 ---
 
 ### Phase 6 — Persistence & History
 
-#### TASK-021 — SQLite layer
+#### TASK-021 — SQLite layer + LangGraph checkpointer
 - Implement `db/sessions.py`:
+  - `get_connection()` — returns a shared SQLite connection
   - `create_session()`, `save_message()`, `save_citation()`, `list_sessions()`, `load_session(id)`
   - Async write queue so DB writes never block the TUI
-- **Done when:** a session round-trips: save → reload → all messages and citations intact
+  - The same connection is passed to `SqliteSaver` when compiling the graph —
+    LangGraph writes its own checkpoint tables alongside the app's tables
+- **Done when:** a session round-trips (save → reload → all messages and citations intact) AND LangGraph can resume a mid-run graph from the checkpoint
 
 #### TASK-022 — History screen
 - Implement `tui/screens/history.py`:
@@ -700,7 +826,7 @@ shippable. Complete them in sequence within each phase.
 - Finalize `pyproject.toml` metadata (description, license, classifiers, homepage)
 - `uv build` + `uv publish`
 - Verify install from PyPI on a clean machine
-- **Done when:** `uv tool install research-assistant` works from PyPI and the app launches
+- **Done when:** `uv tool install hive` works from PyPI and the app launches
 
 #### TASK-030 — Homebrew tap
 - Create `homebrew-tap` GitHub repo
@@ -770,7 +896,7 @@ with [Semantic Versioning](https://semver.org/):
 ```markdown
 # Changelog
 
-All notable changes to research-assistant are documented here.
+All notable changes to hive are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 Versioning: [SemVer](https://semver.org/)
 

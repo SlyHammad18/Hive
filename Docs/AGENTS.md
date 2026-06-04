@@ -1,27 +1,51 @@
-# AGENTS.md — research-assistant
+# AGENTS.md — Hive
 
-**This repo is pre-implementation.** The single source of truth is `Docs/DESIGN.md`. Nothing has been built yet — all code, config, and tests are absent.
+## Before starting
 
-## Package identity
+Read `Docs/DESIGN.md` first — it's the authoritative source for architecture, agent system, data model, and all task definitions.
 
-- PyPI name: `research-assistant`, entry point: `research_assistant.main:main`
-- Python 3.11+, package manager: `uv`
-- Dependencies in `pyproject.toml` (see DESIGN.md for full list)
+## Project state
 
-## Architecture constraint
+Greenfield. Only `Docs/DESIGN.md` exists. All code must be written from scratch following the task breakdown in that doc.
 
-The `core/` layer must have **zero Textual imports** — it is designed to be testable independently and potentially reused as a library or REST API.
+## Key facts
 
-## Development workflow
+- **Stack**: Python ≥3.11, Textual, LangGraph, LiteLLM, httpx, SQLite
+- **Package manager**: `uv` only (no pip/poetry). Use `uv add`, `uv sync`, `uv run`.
+- **Entry point**: `hive.main:main` (registered as `[project.scripts].hive` in `pyproject.toml`)
+- **Test runner**: pytest in `tests/`
+- **Config**: TOML, stored in OS config dir via `platformdirs` — never in the repo
+- **Core constraint**: `hive/core/` must have zero Textual imports — testable independently
+- **Orchestration**: LangGraph `StateGraph` with `SqliteSaver` checkpointer
+- **API keys**: user-supplied via TUI, written to `os.environ` before LiteLLM calls
+- **Export**: Markdown via `markdown` lib, PDF via `weasyprint`
 
-- Work is organized as numbered tasks (`TASK-001` through `TASK-030`) in DESIGN.md
-- `CHANGELOG.md` must be maintained per the rules in DESIGN.md (Keep a Changelog, SemVer, task IDs in entries)
-- Version bumps: feature task → minor, bug/polish → patch, breaking API/config change → major
+## Commands
 
-## Relevant files
+```bash
+uv sync                    # install all deps
+uv run pytest              # run all tests
+uv run hive                # run the app
+uv build                   # build for PyPI
+uv publish                 # publish to PyPI
+```
 
-| File | Purpose |
-|------|---------|
-| `Docs/DESIGN.md` | Full design, architecture, task breakdown |
-| `CHANGELOG.md` | Must exist at root, maintained per DESIGN.md rules |
-| `pyproject.toml` | Does not exist yet — create with `uv init` |
+## Task conventions
+
+- Implement tasks in order per the `Docs/DESIGN.md` phase/task breakdown.
+- Every completed task gets a `CHANGELOG.md` entry under `[Unreleased]` following Keep a Changelog format — user-facing, one line, prefixed with task ID e.g. `[TASK-001] Added project scaffold`.
+- Version bumps per SemVer on release (minor for features, patch for fixes).
+
+## File layout
+
+```
+hive/main.py                 — entry point
+hive/core/                   — no Textual imports
+hive/core/graph/             — LangGraph state + graph + router
+hive/core/nodes/             — planner, browser, researcher, synthesizer, critic
+hive/core/tools/             — search, scraper, citations
+hive/tui/                    — Textual screens + widgets + styles
+hive/db/sessions.py          — SQLite + LangGraph checkpoint store
+hive/export/                 — markdown.py, pdf.py
+tests/                       — pytest tests per module
+```
