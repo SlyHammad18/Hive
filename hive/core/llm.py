@@ -5,7 +5,7 @@ from litellm import AuthenticationError, RateLimitError, Timeout
 
 from hive.core.config import load_config
 
-_PROVIDER_MODELS: dict[str, list[str]] = {
+PROVIDER_MODELS: dict[str, list[str]] = {
     "openai_api_key": [
         "gpt-4o",
         "gpt-4o-mini",
@@ -43,10 +43,10 @@ def list_available_models(config: dict | None = None) -> list[str]:
         if not value:
             continue
         if key == "ollama_base_url":
-            models.extend(_PROVIDER_MODELS.get(key, []))
+            models.extend(PROVIDER_MODELS.get(key, []))
             continue
-        if key in _PROVIDER_MODELS:
-            models.extend(_PROVIDER_MODELS[key])
+        if key in PROVIDER_MODELS:
+            models.extend(PROVIDER_MODELS[key])
     return models
 
 
