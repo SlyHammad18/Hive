@@ -1,2 +1,6 @@
+from hive.tui.app import HiveApp
+
+
 def main() -> None:
-    print("hive — research assistant")
+    app = HiveApp()
+    app.run()

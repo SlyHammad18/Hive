@@ -11,6 +11,7 @@ Versioning: [SemVer](https://semver.org/)
 - [TASK-001] Project scaffold with pyproject.toml, directory structure, and entry point
 - [TASK-002] Config system with load, save, apply, and key masking
 - [TASK-003] LiteLLM wrapper with streaming, completion, and model listing
+- [TASK-004] Textual app skeleton with screen routing, config check, and keybindings
 
 ## [0.1.0] — YYYY-MM-DD
 
