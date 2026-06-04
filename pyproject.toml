@@ -1,0 +1,39 @@
+[project]
+name = "hive"
+version = "0.1.0"
+description = "Multi-agent research assistant TUI"
+requires-python = ">=3.12"
+dependencies = [
+    "textual>=0.60",
+    "langgraph>=0.2",
+    "langgraph-checkpoint-sqlite",
+    "langchain-core",
+    "litellm>=1.40",
+    "tavily-python",
+    "duckduckgo-search",
+    "httpx",
+    "readability-lxml",
+    "weasyprint",
+    "markdown",
+    "rich",
+    "platformdirs",
+    "tomli-w",
+]
+
+[project.scripts]
+hive = "hive.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
