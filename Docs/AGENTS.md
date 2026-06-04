@@ -18,6 +18,7 @@ Greenfield. Only `Docs/DESIGN.md` exists. All code must be written from scratch 
 - **Core constraint**: `hive/core/` must have zero Textual imports — testable independently
 - **Orchestration**: LangGraph `StateGraph` with `SqliteSaver` checkpointer
 - **API keys**: user-supplied via TUI, written to `os.environ` before LiteLLM calls
+- **Supported providers**: OpenAI, Anthropic, Google Gemini, Groq, Ollama (local)
 - **Export**: Markdown via `markdown` lib, PDF via `weasyprint`
 
 ## Commands
