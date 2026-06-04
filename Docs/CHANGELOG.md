@@ -13,6 +13,7 @@ Versioning: [SemVer](https://semver.org/)
 - [TASK-003] LiteLLM wrapper with streaming, completion, and model listing
 - [TASK-004] Textual app skeleton with screen routing, config check, and keybindings
 - [TASK-005] Setup wizard with provider inputs, model selector, and config save
+- [TASK-006] Settings screen with masked pre-filled values, Save, and Cancel
 
 ## [0.1.0] — YYYY-MM-DD
 
