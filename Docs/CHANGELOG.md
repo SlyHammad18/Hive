@@ -12,6 +12,7 @@ Versioning: [SemVer](https://semver.org/)
 
 ### Added
 
+- [TASK-011] Planner node that breaks queries into sub-queries via LLM with JSON parsing and fallback plan
 - [TASK-010] LangGraph pipeline scaffold with HiveState, stub nodes, and SqliteSaver checkpointing
 - [TASK-009] Citation tracker with incremental indexing and Markdown reference formatting
 - [TASK-008] Web scraper tool with async httpx fetching and readability-lxml extraction
