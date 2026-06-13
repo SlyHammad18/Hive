@@ -12,6 +12,7 @@ Versioning: [SemVer](https://semver.org/)
 
 ### Added
 
+- [TASK-015] Critic node that reviews synthesis quality and triggers replan loop via conditional routing
 - [TASK-014] Synthesizer node that composes research notes into a coherent cited final answer
 - [TASK-013] Researcher node that extracts facts from sources with inline citation tracking via LLM
 - [TASK-012] Browser node that searches and scrapes top results in parallel via LangGraph Send API

@@ -166,8 +166,46 @@ def test_synthesizer_node_preserves_citations() -> None:
     assert "[1]" in result["synthesis"] or "[2]" in result["synthesis"]
 
 
-def test_critic_node() -> None:
+def test_critic_node_no_synthesis() -> None:
     state = _make_state()
     result = critic_node(state)
+    assert result["critique"].confidence == 0.0
+    assert len(result["critique"].issues) == 1
+
+
+def test_critic_node_with_synthesis() -> None:
+    state = _make_state(synthesis="A well-researched answer about AI [1].")
+    result = critic_node(state)
     assert "critique" in result
+    assert 0.0 <= result["critique"].confidence <= 1.0
+
+
+def test_critic_node_fallback_high_confidence() -> None:
+    state = _make_state(synthesis="Some answer.")
+    with patch("hive.core.nodes.critic.load_config", return_value={"defaults": {}}):
+        result = critic_node(state)
     assert result["critique"].confidence == 0.9
+
+
+def test_parse_critique_valid() -> None:
+    from hive.core.nodes.critic import _parse_critique
+    content = '{"issues": ["Missing citation", "Weak reasoning"], "confidence": 0.4, "follow_ups": ["Find more sources"]}'
+    result = _parse_critique(content)
+    assert result is not None
+    assert len(result.issues) == 2
+    assert result.confidence == 0.4
+    assert result.follow_ups == ["Find more sources"]
+
+
+def test_parse_critique_invalid() -> None:
+    from hive.core.nodes.critic import _parse_critique
+    assert _parse_critique("not json") is None
+    assert _parse_critique("") is None
+
+
+def test_parse_critique_clamps_confidence() -> None:
+    from hive.core.nodes.critic import _parse_critique
+    content = '{"issues": [], "confidence": 1.5, "follow_ups": []}'
+    result = _parse_critique(content)
+    assert result is not None
+    assert result.confidence == 1.0
