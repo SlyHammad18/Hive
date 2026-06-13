@@ -30,7 +30,10 @@ def test_save_and_load_round_trip(tmp_config_path: Path) -> None:
     assert loaded == data
 
 
-def test_apply_config_sets_env(tmp_config_path: Path) -> None:
+def test_apply_config_sets_env(monkeypatch: pytest.MonkeyPatch, tmp_config_path: Path) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     data = {
         "providers": {
             "anthropic_api_key": "sk-ant-test123",

@@ -5,7 +5,7 @@ from textual.screen import Screen
 from textual.widgets import Button, Input, Label, Select, Static
 
 from hive.core.config import load_config, save_config, apply_config, mask_key
-from hive.core.llm import PROVIDER_MODELS
+from hive.core.llm import fetch_provider_models, list_available_models
 
 
 def _provider_from_model(model: str) -> str:
@@ -91,6 +91,10 @@ class SettingsScreen(Screen[None]):
         model = defaults.get("model", "")
         if model:
             self.model_select.value = model
+        for key, inp in self.inputs.items():
+            val = inp.value.strip()
+            if val:
+                self.set_timer(0.1, lambda k=key, v=val: self._fetch_fresh_models(k, v))
 
     def on_input_changed(self, event: Input.Changed) -> None:
         input_id = event.input.id or ""
@@ -111,18 +115,22 @@ class SettingsScreen(Screen[None]):
             val = inp.value.strip()
             if val:
                 providers[key] = val
-        models = []
-        for key, val in providers.items():
-            if key == "ollama_base_url":
-                models.extend(PROVIDER_MODELS.get(key, []))
-            elif key in PROVIDER_MODELS:
-                models.extend(PROVIDER_MODELS[key])
+        config = {"providers": providers}
+        models = list_available_models(config)
+        saved_cfg = load_config()
+        saved_model = saved_cfg.get("defaults", {}).get("model", "")
+        if saved_model and saved_model not in models:
+            models.insert(0, saved_model)
         options = [(m, m) for m in models]
         self.models_available = options
 
     def watch_models_available(self, options: list[tuple[str, str]]) -> None:
         self.model_select.set_options(options)
         self.model_select.disabled = len(options) == 0
+
+    async def _fetch_fresh_models(self, provider_key: str, value: str) -> None:
+        await fetch_provider_models(provider_key, value)
+        self._rebuild_models()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":

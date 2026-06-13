@@ -5,7 +5,7 @@ from textual.screen import Screen
 from textual.widgets import Button, Input, Label, Select, Static
 
 from hive.core.config import save_config, apply_config
-from hive.core.llm import PROVIDER_MODELS
+from hive.core.llm import fetch_provider_models, list_available_models
 
 
 def _provider_from_model(model: str) -> str:
@@ -82,18 +82,18 @@ class SetupScreen(Screen[None]):
             val = inp.value.strip()
             if val:
                 providers[key] = val
-        models = []
-        for key, val in providers.items():
-            if key == "ollama_base_url":
-                models.extend(PROVIDER_MODELS.get(key, []))
-            elif key in PROVIDER_MODELS:
-                models.extend(PROVIDER_MODELS[key])
+        config = {"providers": providers}
+        models = list_available_models(config)
         options = [(m, m) for m in models]
         self.models_available = options
 
     def watch_models_available(self, options: list[tuple[str, str]]) -> None:
         self.model_select.set_options(options)
         self.model_select.disabled = len(options) == 0
+
+    async def _fetch_fresh_models(self, provider_key: str, value: str) -> None:
+        await fetch_provider_models(provider_key, value)
+        self._rebuild_models()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":

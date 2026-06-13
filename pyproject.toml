@@ -10,7 +10,7 @@ dependencies = [
     "langchain-core",
     "litellm>=1.40",
     "tavily-python",
-    "duckduckgo-search",
+    "ddgs",
     "httpx",
     "readability-lxml",
     "weasyprint",
@@ -36,4 +36,5 @@ testpaths = ["tests"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
 ]

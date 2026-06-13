@@ -31,3 +31,24 @@ def test_list_available_models_includes_ollama() -> None:
     config = {"providers": {"ollama_base_url": "http://localhost:11434"}}
     models = llm.list_available_models(config)
     assert any("ollama/" in m for m in models)
+
+
+@pytest.mark.asyncio
+async def test_fetch_provider_models_anthropic_uses_fallback() -> None:
+    models = await llm.fetch_provider_models("anthropic_api_key", "sk-ant-test")
+    assert "claude-sonnet-4-6" in models
+
+
+@pytest.mark.asyncio
+async def test_fetch_provider_models_unknown_uses_fallback() -> None:
+    models = await llm.fetch_provider_models("nonexistent_key", "value")
+    assert models == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_provider_models_caches_result() -> None:
+    llm.clear_model_cache()
+    models = await llm.fetch_provider_models("anthropic_api_key", "sk-ant-test")
+    assert len(models) > 0
+    cache_key = "anthropic_api_key:sk-ant-test"
+    assert cache_key in llm._cache

@@ -1,11 +1,14 @@
+import asyncio
 from collections.abc import AsyncIterator
+from time import monotonic
 
+import httpx
 import litellm
 from litellm import AuthenticationError, RateLimitError, Timeout
 
 from hive.core.config import load_config
 
-PROVIDER_MODELS: dict[str, list[str]] = {
+_FALLBACK_MODELS: dict[str, list[str]] = {
     "openai_api_key": [
         "gpt-4o",
         "gpt-4o-mini",
@@ -32,22 +35,113 @@ PROVIDER_MODELS: dict[str, list[str]] = {
     "ollama_base_url": ["ollama/llama3.2", "ollama/mistral"],
 }
 
+_cache: dict[str, tuple[float, list[str]]] = {}
+_CACHE_TTL = 300
+
+_TIMEOUT = httpx.Timeout(5.0)
+
+
+async def _fetch_openai_models(api_key: str) -> list[str]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            "https://api.openai.com/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        models = [m["id"] for m in data.get("data", []) if m["id"].startswith("gpt-")]
+        return sorted(models)
+
+
+async def _fetch_groq_models(api_key: str) -> list[str]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            "https://api.groq.com/openai/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        models = [m["id"] for m in data.get("data", [])]
+        return sorted(models)
+
+
+async def _fetch_google_models(api_key: str) -> list[str]:
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(
+            "https://generativelanguage.googleapis.com/v1beta/models",
+            params={"key": api_key},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        models = [
+            m["name"].removeprefix("models/")
+            for m in data.get("models", [])
+            if "gemini" in m["name"]
+        ]
+        return sorted(models)
+
+
+async def _fetch_ollama_models(base_url: str) -> list[str]:
+    url = base_url.rstrip("/") + "/api/tags"
+    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        resp = await client.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+        models = [m["name"] for m in data.get("models", [])]
+        return sorted(models)
+
+
+_FETCHERS: dict[str, callable] = {
+    "openai_api_key": _fetch_openai_models,
+    "groq_api_key": _fetch_groq_models,
+    "google_api_key": _fetch_google_models,
+    "ollama_base_url": _fetch_ollama_models,
+}
+
+
+async def fetch_provider_models(provider_key: str, value: str) -> list[str]:
+    now = monotonic()
+    cached = _cache.get(provider_key + ":" + value)
+    if cached and now - cached[0] < _CACHE_TTL:
+        return cached[1]
+
+    fetcher = _FETCHERS.get(provider_key)
+    if not fetcher:
+        fallback = _FALLBACK_MODELS.get(provider_key, [])
+        _cache[provider_key + ":" + value] = (now, fallback)
+        return fallback
+
+    try:
+        models = await fetcher(value)
+        _cache[provider_key + ":" + value] = (now, models)
+        return models
+    except Exception:
+        fallback = _FALLBACK_MODELS.get(provider_key, [])
+        _cache[provider_key + ":" + value] = (now, fallback)
+        return fallback
+
 
 def list_available_models(config: dict | None = None) -> list[str]:
     if config is None:
         config = load_config()
     providers = config.get("providers", {})
     models: list[str] = []
+    now = monotonic()
     for key in providers:
         value = providers[key]
         if not value:
             continue
-        if key == "ollama_base_url":
-            models.extend(PROVIDER_MODELS.get(key, []))
-            continue
-        if key in PROVIDER_MODELS:
-            models.extend(PROVIDER_MODELS[key])
+        cache_key = key + ":" + value
+        cached = _cache.get(cache_key)
+        if cached and now - cached[0] < _CACHE_TTL:
+            models.extend(cached[1])
+        else:
+            models.extend(_FALLBACK_MODELS.get(key, []))
     return models
+
+
+def clear_model_cache() -> None:
+    _cache.clear()
 
 
 async def stream(
