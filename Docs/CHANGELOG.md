@@ -12,6 +12,7 @@ Versioning: [SemVer](https://semver.org/)
 
 ### Added
 
+- [TASK-020] Research screen assembling all widgets with async graph streaming and cancellation
 - [TASK-019] Status bar widget showing model name, token usage, and estimated cost
 - [TASK-018] Citations widget with clickable numbered badges opening URLs in browser
 - [TASK-017] Chat widget with real-time streaming token display and Markdown rendering via rich

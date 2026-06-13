@@ -13,6 +13,7 @@ dependencies = [
     "ddgs",
     "httpx",
     "readability-lxml",
+    "aiosqlite",
     "weasyprint",
     "markdown",
     "rich",

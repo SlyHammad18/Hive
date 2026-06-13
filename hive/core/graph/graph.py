@@ -1,8 +1,10 @@
 import sqlite3
 
+import aiosqlite
+from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, StateGraph
 from langgraph.types import Send
-from langgraph.checkpoint.sqlite import SqliteSaver
 
 from hive.core.graph.router import should_continue
 from hive.core.graph.state import HiveState
@@ -11,7 +13,7 @@ from hive.core.nodes.browser import browser_node
 from hive.core.nodes.researcher import researcher_node
 from hive.core.nodes.synthesizer import synthesizer_node
 from hive.core.nodes.critic import critic_node
-from hive.db.sessions import get_connection
+from hive.db.sessions import get_connection, get_async_connection
 
 
 def _plan_to_browse(state: HiveState) -> list[Send]:
@@ -44,5 +46,12 @@ def _build_graph() -> StateGraph:
 def compile_graph(connection: sqlite3.Connection | None = None):
     conn = connection or get_connection()
     checkpointer = SqliteSaver(conn)
+    graph = _build_graph()
+    return graph.compile(checkpointer=checkpointer)
+
+
+async def compile_graph_async(connection: aiosqlite.Connection | None = None):
+    conn = connection or await get_async_connection()
+    checkpointer = AsyncSqliteSaver(conn)
     graph = _build_graph()
     return graph.compile(checkpointer=checkpointer)

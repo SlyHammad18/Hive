@@ -24,6 +24,10 @@ class StatusBar(Horizontal):
     def set_cost(self, cost_usd: float) -> None:
         self._cost.update(f"${cost_usd:.4f}")
 
+    def reset_counts(self) -> None:
+        self._tokens.update("0 tok")
+        self._cost.update("$0.0000")
+
     def update_from_graph(
         self, model: str, prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: float
     ) -> None:

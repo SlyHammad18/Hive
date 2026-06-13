@@ -100,3 +100,44 @@ Input {
     margin: 0 2;
     color: #8b8fa8;
 }
+
+#research-header {
+    height: 1;
+}
+
+#research-body {
+    height: 1fr;
+}
+
+#left-panel {
+    width: 30%;
+    height: 100%;
+    border-right: solid #2d2f4a;
+    padding: 0 1;
+}
+
+#right-panel {
+    width: 70%;
+    height: 100%;
+    padding: 0 1;
+}
+
+#input-bar {
+    height: 3;
+    background: #2d2f4a;
+    padding: 0 1;
+    align: center middle;
+}
+
+#query-input {
+    width: 100%;
+}
+
+.panel {
+    background: #1a1b2e;
+}
+
+Tree {
+    height: auto;
+    max-height: 50%;
+}

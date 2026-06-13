@@ -3,7 +3,7 @@ import typing
 
 import pytest
 
-from hive.core.graph.graph import _build_graph, compile_graph
+from hive.core.graph.graph import _build_graph, compile_graph, compile_graph_async
 from hive.core.graph.state import BrowserResult, CritiqueResult, HiveState, TokenUsage
 
 
@@ -22,6 +22,17 @@ def mem_conn() -> sqlite3.Connection:
 def test_graph_compiles(mem_conn: sqlite3.Connection) -> None:
     app = compile_graph(connection=mem_conn)
     assert app is not None
+
+
+@pytest.mark.asyncio
+async def test_graph_compiles_async() -> None:
+    import aiosqlite
+    conn = await aiosqlite.connect(":memory:")
+    try:
+        app = await compile_graph_async(connection=conn)
+        assert app is not None
+    finally:
+        await conn.close()
 
 
 def test_graph_runs_stub_pipeline(mem_conn: sqlite3.Connection) -> None:
