@@ -144,11 +144,26 @@ def test_researcher_node_citations_are_indexed() -> None:
     assert result["citations"][1].index == 2
 
 
-def test_synthesizer_node() -> None:
+def test_synthesizer_node_no_notes() -> None:
     state = _make_state()
     result = synthesizer_node(state)
+    assert result["synthesis"] == "No research notes available to synthesize."
+
+
+def test_synthesizer_node_with_notes() -> None:
+    state = _make_state(research_notes="Key fact about AI [1]. Another finding [2].")
+    result = synthesizer_node(state)
     assert "synthesis" in result
-    assert result["synthesis"]
+    assert len(result["synthesis"]) > 0
+
+
+def test_synthesizer_node_preserves_citations() -> None:
+    state = _make_state(
+        query="What is AI?",
+        research_notes="AI is transformative [1]. It has risks [2].",
+    )
+    result = synthesizer_node(state)
+    assert "[1]" in result["synthesis"] or "[2]" in result["synthesis"]
 
 
 def test_critic_node() -> None:
