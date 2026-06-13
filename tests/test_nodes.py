@@ -1,9 +1,12 @@
+from unittest.mock import AsyncMock, patch
+
 from hive.core.graph.state import BrowserResult, CritiqueResult, HiveState, TokenUsage
 from hive.core.nodes.browser import browser_node
 from hive.core.nodes.critic import critic_node
 from hive.core.nodes.planner import planner_node, _generate_fallback_plan, _parse_plan
 from hive.core.nodes.researcher import researcher_node
 from hive.core.nodes.synthesizer import synthesizer_node
+from hive.core.tools.scraper import PageContent
 
 
 def _make_state(**overrides: object) -> HiveState:
@@ -59,15 +62,55 @@ def test_parse_plan_invalid() -> None:
     assert _parse_plan("") is None
 
 
-def test_browser_node() -> None:
-    state = _make_state()
-    state["sub_query"] = "test sub query"  # type: ignore[typeddict-item]
-    result = browser_node(state)
+def test_browser_node_with_mocked_search() -> None:
+    fake_results = [
+        type("FakeResult", (), {"title": "Page A", "url": "https://a.com", "snippet": "snippet A"})(),
+        type("FakeResult", (), {"title": "Page B", "url": "https://b.com", "snippet": "snippet B"})(),
+    ]
+    mock_fetch = AsyncMock(side_effect=[
+        PageContent(title="Page A", url="https://a.com", text="text from A", word_count=3),
+        PageContent(title="Page B", url="https://b.com", text="text from B", word_count=3),
+    ])
+    with patch("hive.core.nodes.browser.search", return_value=fake_results):
+        with patch("hive.core.nodes.browser.fetch_page", mock_fetch):
+            state: HiveState = _make_state()
+            state["sub_query"] = "test sub query"  # type: ignore[typeddict-item]
+            result = browser_node(state)
     assert "browser_results" in result
-    assert len(result["browser_results"]) == 1
-    br = result["browser_results"][0]
-    assert isinstance(br, BrowserResult)
-    assert br.sub_query == "test sub query"
+    assert len(result["browser_results"]) == 2
+    br0 = result["browser_results"][0]
+    assert br0.sub_query == "test sub query"
+    assert br0.url == "https://a.com"
+    assert br0.text == "text from A"
+    br1 = result["browser_results"][1]
+    assert br1.url == "https://b.com"
+    assert br1.text == "text from B"
+
+
+def test_browser_node_empty_search() -> None:
+    with patch("hive.core.nodes.browser.search", return_value=[]):
+        state: HiveState = _make_state()
+        state["sub_query"] = "empty"  # type: ignore[typeddict-item]
+        result = browser_node(state)
+    assert len(result["browser_results"]) == 0
+
+
+def test_browser_node_partial_fetch_failure() -> None:
+    fake_results = [
+        type("FakeResult", (), {"title": "Page A", "url": "https://a.com", "snippet": "snippet A"})(),
+        type("FakeResult", (), {"title": "Page B", "url": "https://b.com", "snippet": "snippet B"})(),
+    ]
+    mock_fetch = AsyncMock(side_effect=[
+        PageContent(title="Page A", url="https://a.com", text="text from A", word_count=3),
+        None,
+    ])
+    with patch("hive.core.nodes.browser.search", return_value=fake_results):
+        with patch("hive.core.nodes.browser.fetch_page", mock_fetch):
+            state: HiveState = _make_state()
+            state["sub_query"] = "test"  # type: ignore[typeddict-item]
+            result = browser_node(state)
+    assert result["browser_results"][0].text == "text from A"
+    assert result["browser_results"][1].text == ""
 
 
 def test_researcher_node() -> None:

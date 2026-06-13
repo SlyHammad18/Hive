@@ -7,6 +7,11 @@ from hive.core.graph.graph import _build_graph, compile_graph
 from hive.core.graph.state import BrowserResult, CritiqueResult, HiveState, TokenUsage
 
 
+@pytest.fixture(autouse=True)
+def clear_tavily_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+
+
 @pytest.fixture
 def mem_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(":memory:", check_same_thread=False)

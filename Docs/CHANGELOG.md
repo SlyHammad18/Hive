@@ -12,6 +12,7 @@ Versioning: [SemVer](https://semver.org/)
 
 ### Added
 
+- [TASK-012] Browser node that searches and scrapes top results in parallel via LangGraph Send API
 - [TASK-011] Planner node that breaks queries into sub-queries via LLM with JSON parsing and fallback plan
 - [TASK-010] LangGraph pipeline scaffold with HiveState, stub nodes, and SqliteSaver checkpointing
 - [TASK-009] Citation tracker with incremental indexing and Markdown reference formatting
