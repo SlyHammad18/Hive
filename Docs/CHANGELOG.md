@@ -12,6 +12,7 @@ Versioning: [SemVer](https://semver.org/)
 
 ### Added
 
+- [TASK-010] LangGraph pipeline scaffold with HiveState, stub nodes, and SqliteSaver checkpointing
 - [TASK-009] Citation tracker with incremental indexing and Markdown reference formatting
 - [TASK-008] Web scraper tool with async httpx fetching and readability-lxml extraction
 - [TASK-001] Project scaffold with pyproject.toml, directory structure, and entry point

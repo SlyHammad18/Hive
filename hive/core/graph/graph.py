@@ -1,7 +1,7 @@
 import sqlite3
 
-from langgraph.constants import Send
 from langgraph.graph import END, StateGraph
+from langgraph.types import Send
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from hive.core.graph.router import should_continue
