@@ -35,28 +35,40 @@ async def test_graph_compiles_async() -> None:
         await conn.close()
 
 
-def test_graph_runs_stub_pipeline(mem_conn: sqlite3.Connection) -> None:
-    app = compile_graph(connection=mem_conn)
-    result = app.invoke(
-        {"query": "test query"},
-        {"configurable": {"thread_id": "test-1"}},
-    )
-    assert result["query"] == "test query"
-    assert len(result["plan"]) >= 2
-    assert len(result["browser_results"]) >= 2
-    assert "research_notes" in result and result["research_notes"]
-    assert "synthesis" in result and result["synthesis"]
-    assert result["critique"] is not None
-    assert result["critique"].confidence == 0.9
+@pytest.mark.asyncio
+async def test_graph_runs_stub_pipeline() -> None:
+    import aiosqlite
+    conn = await aiosqlite.connect(":memory:")
+    try:
+        app = await compile_graph_async(connection=conn)
+        result = await app.ainvoke(
+            {"query": "test query"},
+            {"configurable": {"thread_id": "test-1"}},
+        )
+        assert result["query"] == "test query"
+        assert len(result["plan"]) >= 2
+        assert len(result["browser_results"]) >= 2
+        assert "research_notes" in result and result["research_notes"]
+        assert "synthesis" in result and result["synthesis"]
+        assert result["critique"] is not None
+        assert result["critique"].confidence == 0.9
+    finally:
+        await conn.close()
 
 
-def test_graph_ends_after_one_pass(mem_conn: sqlite3.Connection) -> None:
-    app = compile_graph(connection=mem_conn)
-    result = app.invoke(
-        {"query": "test query"},
-        {"configurable": {"thread_id": "test-2"}},
-    )
-    assert result["iteration"] >= 1
+@pytest.mark.asyncio
+async def test_graph_ends_after_one_pass() -> None:
+    import aiosqlite
+    conn = await aiosqlite.connect(":memory:")
+    try:
+        app = await compile_graph_async(connection=conn)
+        result = await app.ainvoke(
+            {"query": "test query"},
+            {"configurable": {"thread_id": "test-2"}},
+        )
+        assert result["iteration"] >= 1
+    finally:
+        await conn.close()
 
 
 def test_graph_builds_without_compiling() -> None:

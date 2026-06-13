@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import AsyncMock, patch
 
 from hive.core.graph.state import BrowserResult, CritiqueResult, HiveState, TokenUsage
@@ -26,18 +27,20 @@ def _make_state(**overrides: object) -> HiveState:
     return base
 
 
-def test_planner_node_fallback_when_no_model() -> None:
+@pytest.mark.asyncio
+async def test_planner_node_fallback_when_no_model() -> None:
     state = _make_state(query="test query")
-    result = planner_node(state)
+    result = await planner_node(state)
     assert "plan" in result
     assert len(result["plan"]) >= 2
     assert result["plan"][0].startswith("Background")
     assert result["iteration"] == 1
 
 
-def test_planner_node_increments_iteration() -> None:
+@pytest.mark.asyncio
+async def test_planner_node_increments_iteration() -> None:
     state = _make_state(query="test query", iteration=0)
-    result = planner_node(state)
+    result = await planner_node(state)
     assert result["iteration"] == 1
 
 
@@ -62,7 +65,8 @@ def test_parse_plan_invalid() -> None:
     assert _parse_plan("") is None
 
 
-def test_browser_node_with_mocked_search() -> None:
+@pytest.mark.asyncio
+async def test_browser_node_with_mocked_search() -> None:
     fake_results = [
         type("FakeResult", (), {"title": "Page A", "url": "https://a.com", "snippet": "snippet A"})(),
         type("FakeResult", (), {"title": "Page B", "url": "https://b.com", "snippet": "snippet B"})(),
@@ -75,7 +79,7 @@ def test_browser_node_with_mocked_search() -> None:
         with patch("hive.core.nodes.browser.fetch_page", mock_fetch):
             state: HiveState = _make_state()
             state["sub_query"] = "test sub query"  # type: ignore[typeddict-item]
-            result = browser_node(state)
+            result = await browser_node(state)
     assert "browser_results" in result
     assert len(result["browser_results"]) == 2
     br0 = result["browser_results"][0]
@@ -87,15 +91,17 @@ def test_browser_node_with_mocked_search() -> None:
     assert br1.text == "text from B"
 
 
-def test_browser_node_empty_search() -> None:
+@pytest.mark.asyncio
+async def test_browser_node_empty_search() -> None:
     with patch("hive.core.nodes.browser.search", return_value=[]):
         state: HiveState = _make_state()
         state["sub_query"] = "empty"  # type: ignore[typeddict-item]
-        result = browser_node(state)
+        result = await browser_node(state)
     assert len(result["browser_results"]) == 0
 
 
-def test_browser_node_partial_fetch_failure() -> None:
+@pytest.mark.asyncio
+async def test_browser_node_partial_fetch_failure() -> None:
     fake_results = [
         type("FakeResult", (), {"title": "Page A", "url": "https://a.com", "snippet": "snippet A"})(),
         type("FakeResult", (), {"title": "Page B", "url": "https://b.com", "snippet": "snippet B"})(),
@@ -108,22 +114,24 @@ def test_browser_node_partial_fetch_failure() -> None:
         with patch("hive.core.nodes.browser.fetch_page", mock_fetch):
             state: HiveState = _make_state()
             state["sub_query"] = "test"  # type: ignore[typeddict-item]
-            result = browser_node(state)
+            result = await browser_node(state)
     assert result["browser_results"][0].text == "text from A"
     assert result["browser_results"][1].text == ""
 
 
-def test_researcher_node_no_sources() -> None:
+@pytest.mark.asyncio
+async def test_researcher_node_no_sources() -> None:
     state = _make_state()
-    result = researcher_node(state)
+    result = await researcher_node(state)
     assert result["research_notes"] == "No source materials provided."
     assert result["citations"] == []
 
 
-def test_researcher_node_with_sources() -> None:
+@pytest.mark.asyncio
+async def test_researcher_node_with_sources() -> None:
     br = BrowserResult(sub_query="q", url="https://a.com", title="Page A", snippet="snippet A", text="Some interesting facts about AI.")
     state = _make_state(browser_results=[br])
-    result = researcher_node(state)
+    result = await researcher_node(state)
     assert "research_notes" in result
     assert len(result["research_notes"]) > 0
     assert "citations" in result
@@ -132,58 +140,65 @@ def test_researcher_node_with_sources() -> None:
     assert result["citations"][0].agent == "Researcher"
 
 
-def test_researcher_node_citations_are_indexed() -> None:
+@pytest.mark.asyncio
+async def test_researcher_node_citations_are_indexed() -> None:
     brs = [
         BrowserResult(sub_query="q1", url="https://a.com", title="Page A", snippet="snippet A", text="Content A."),
         BrowserResult(sub_query="q2", url="https://b.com", title="Page B", snippet="snippet B", text="Content B."),
     ]
     state = _make_state(browser_results=brs)
-    result = researcher_node(state)
+    result = await researcher_node(state)
     assert len(result["citations"]) == 2
     assert result["citations"][0].index == 1
     assert result["citations"][1].index == 2
 
 
-def test_synthesizer_node_no_notes() -> None:
+@pytest.mark.asyncio
+async def test_synthesizer_node_no_notes() -> None:
     state = _make_state()
-    result = synthesizer_node(state)
+    result = await synthesizer_node(state)
     assert result["synthesis"] == "No research notes available to synthesize."
 
 
-def test_synthesizer_node_with_notes() -> None:
+@pytest.mark.asyncio
+async def test_synthesizer_node_with_notes() -> None:
     state = _make_state(research_notes="Key fact about AI [1]. Another finding [2].")
-    result = synthesizer_node(state)
+    result = await synthesizer_node(state)
     assert "synthesis" in result
     assert len(result["synthesis"]) > 0
 
 
-def test_synthesizer_node_preserves_citations() -> None:
+@pytest.mark.asyncio
+async def test_synthesizer_node_preserves_citations() -> None:
     state = _make_state(
         query="What is AI?",
         research_notes="AI is transformative [1]. It has risks [2].",
     )
-    result = synthesizer_node(state)
+    result = await synthesizer_node(state)
     assert "[1]" in result["synthesis"] or "[2]" in result["synthesis"]
 
 
-def test_critic_node_no_synthesis() -> None:
+@pytest.mark.asyncio
+async def test_critic_node_no_synthesis() -> None:
     state = _make_state()
-    result = critic_node(state)
+    result = await critic_node(state)
     assert result["critique"].confidence == 0.0
     assert len(result["critique"].issues) == 1
 
 
-def test_critic_node_with_synthesis() -> None:
+@pytest.mark.asyncio
+async def test_critic_node_with_synthesis() -> None:
     state = _make_state(synthesis="A well-researched answer about AI [1].")
-    result = critic_node(state)
+    result = await critic_node(state)
     assert "critique" in result
     assert 0.0 <= result["critique"].confidence <= 1.0
 
 
-def test_critic_node_fallback_high_confidence() -> None:
+@pytest.mark.asyncio
+async def test_critic_node_fallback_high_confidence() -> None:
     state = _make_state(synthesis="Some answer.")
     with patch("hive.core.nodes.critic.load_config", return_value={"defaults": {}}):
-        result = critic_node(state)
+        result = await critic_node(state)
     assert result["critique"].confidence == 0.9
 
 

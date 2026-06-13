@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE TABLE IF NOT EXISTS citations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL,
-    index INTEGER NOT NULL,
+    "index" INTEGER NOT NULL,
     url TEXT NOT NULL,
     title TEXT NOT NULL,
     snippet TEXT NOT NULL,

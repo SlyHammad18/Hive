@@ -7,6 +7,9 @@ import litellm
 from litellm import AuthenticationError, RateLimitError, Timeout
 
 from hive.core.config import load_config
+from hive.core.log import get_logger
+
+_log = get_logger("llm")
 
 _FALLBACK_MODELS: dict[str, list[str]] = {
     "openai_api_key": [
@@ -61,7 +64,7 @@ async def _fetch_groq_models(api_key: str) -> list[str]:
         )
         resp.raise_for_status()
         data = resp.json()
-        models = [m["id"] for m in data.get("data", [])]
+        models = ["groq/" + m["id"] for m in data.get("data", [])]
         return sorted(models)
 
 
@@ -74,7 +77,7 @@ async def _fetch_google_models(api_key: str) -> list[str]:
         resp.raise_for_status()
         data = resp.json()
         models = [
-            m["name"].removeprefix("models/")
+            "gemini/" + m["name"].removeprefix("models/")
             for m in data.get("models", [])
             if "gemini" in m["name"]
         ]
@@ -100,24 +103,30 @@ _FETCHERS: dict[str, callable] = {
 
 
 async def fetch_provider_models(provider_key: str, value: str) -> list[str]:
+    _log.debug("fetch_provider_models: key=%s", provider_key)
     now = monotonic()
-    cached = _cache.get(provider_key + ":" + value)
+    cache_key = provider_key + ":" + value
+    cached = _cache.get(cache_key)
     if cached and now - cached[0] < _CACHE_TTL:
+        _log.debug("  cache HIT for %s (%d models)", cache_key, len(cached[1]))
         return cached[1]
 
     fetcher = _FETCHERS.get(provider_key)
     if not fetcher:
+        _log.debug("  no fetcher for %s, using fallback", provider_key)
         fallback = _FALLBACK_MODELS.get(provider_key, [])
-        _cache[provider_key + ":" + value] = (now, fallback)
+        _cache[cache_key] = (now, fallback)
         return fallback
 
     try:
         models = await fetcher(value)
-        _cache[provider_key + ":" + value] = (now, models)
+        _log.debug("  fetched %d models from API for %s", len(models), provider_key)
+        _cache[cache_key] = (now, models)
         return models
-    except Exception:
+    except Exception as e:
+        _log.debug("  fetch failed for %s: %s, using fallback", provider_key, e)
         fallback = _FALLBACK_MODELS.get(provider_key, [])
-        _cache[provider_key + ":" + value] = (now, fallback)
+        _cache[cache_key] = (now, fallback)
         return fallback
 
 
@@ -125,6 +134,7 @@ def list_available_models(config: dict | None = None) -> list[str]:
     if config is None:
         config = load_config()
     providers = config.get("providers", {})
+    _log.debug("list_available_models: providers with values: %s", {k for k, v in providers.items() if v})
     models: list[str] = []
     now = monotonic()
     for key in providers:
@@ -134,9 +144,13 @@ def list_available_models(config: dict | None = None) -> list[str]:
         cache_key = key + ":" + value
         cached = _cache.get(cache_key)
         if cached and now - cached[0] < _CACHE_TTL:
+            _log.debug("  cache HIT for %s (%d models)", cache_key, len(cached[1]))
             models.extend(cached[1])
         else:
-            models.extend(_FALLBACK_MODELS.get(key, []))
+            fallback = _FALLBACK_MODELS.get(key, [])
+            _log.debug("  cache MISS for %s, using fallback (%d models)", cache_key, len(fallback))
+            models.extend(fallback)
+    _log.debug("  total models returned: %d", len(models))
     return models
 
 
@@ -175,6 +189,7 @@ async def complete(
     model: str,
     **kwargs: object,
 ) -> tuple[str, dict[str, int]]:
+    _log.debug("complete: model=%s, msgs=%d", model, len(messages))
     try:
         response = await litellm.acompletion(
             model=model,
@@ -190,10 +205,14 @@ async def complete(
                 "completion_tokens": getattr(usage, "completion_tokens", 0),
                 "total_tokens": getattr(usage, "total_tokens", 0),
             }
+        _log.debug("  complete OK: tokens=%s, content_len=%d", token_counts, len(content))
         return content, token_counts
     except AuthenticationError:
+        _log.error("  AuthenticationError for model %s", model)
         raise
     except RateLimitError:
+        _log.error("  RateLimitError for model %s", model)
         raise
     except Timeout:
+        _log.error("  Timeout for model %s", model)
         raise

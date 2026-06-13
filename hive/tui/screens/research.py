@@ -24,6 +24,7 @@ _ESTIMATED_COST_PER_TOKEN = 0.00001
 class ResearchScreen(Screen[None]):
     BINDINGS = [
         Binding("ctrl+c", "cancel", "Cancel"),
+        Binding("escape", "back", "Back"),
         Binding("e", "export", "Export"),
         Binding("n", "new_session", "New"),
     ]
@@ -99,7 +100,7 @@ class ResearchScreen(Screen[None]):
                     self.agent_panel.agent_statuses = {**self._agent_statuses, name: "done"}
                     self._agent_statuses[name] = "done"
 
-            final_state = app.get_state(config)
+            final_state = await app.aget_state(config)
             state_values = final_state.values
 
             synthesis = state_values.get("synthesis", "")
@@ -124,9 +125,20 @@ class ResearchScreen(Screen[None]):
             self.query_input.disabled = False
             self.query_input.focus()
 
-    def action_cancel(self) -> None:
+    def on_unmount(self) -> None:
+        self._cancel_task()
+
+    def _cancel_task(self) -> None:
         if self._research_task and not self._research_task.done():
             self._research_task.cancel()
+
+    def action_cancel(self) -> None:
+        self._cancel_task()
+
+    def action_back(self) -> None:
+        if self._research_task and not self._research_task.done():
+            self._research_task.cancel()
+        self.app.pop_screen()
 
     def action_export(self) -> None:
         pass

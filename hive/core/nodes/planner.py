@@ -1,9 +1,11 @@
-import asyncio
 import json
 
 from hive.core.config import load_config
 from hive.core.graph.state import HiveState
 from hive.core.llm import complete
+from hive.core.log import get_logger
+
+_log = get_logger("nodes.planner")
 
 
 _PLANNER_SYSTEM_PROMPT = (
@@ -33,12 +35,14 @@ def _parse_plan(content: str) -> list[str] | None:
     return None
 
 
-def planner_node(state: HiveState) -> dict:
+async def planner_node(state: HiveState) -> dict:
     cfg = load_config()
     defaults = cfg.get("defaults", {})
     model: str = defaults.get("model", "") or ""
     query = state.get("query", "")
     iteration: int = state.get("iteration", 0)
+
+    _log.debug("planner_node: model=%r query=%r iteration=%d", model, query[:50] if query else "", iteration)
 
     plan: list[str] = []
 
@@ -48,14 +52,18 @@ def planner_node(state: HiveState) -> dict:
             {"role": "user", "content": query},
         ]
         try:
-            content, _ = asyncio.run(complete(messages, model, temperature=0.7))
+            content, _ = await complete(messages, model, temperature=0.7)
             parsed = _parse_plan(content)
             if parsed is not None:
                 plan = parsed
-        except Exception:
-            pass
+                _log.debug("  LLM plan: %s", plan)
+            else:
+                _log.warning("  LLM response did not parse as valid plan")
+        except Exception as e:
+            _log.warning("  LLM call failed: %s", e)
 
     if not plan:
+        _log.debug("  using fallback plan")
         plan = _generate_fallback_plan(query)
 
     return {"plan": plan, "iteration": iteration + 1}

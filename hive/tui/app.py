@@ -12,8 +12,8 @@ class HiveApp(App[None]):
     CSS_PATH = "styles/main.tcss"
     BINDINGS = [
         Binding("q", "quit", "Quit"),
-        Binding("s", "push_screen('settings')", "Settings", priority=True),
-        Binding("h", "push_screen('history')", "History", priority=True),
+        Binding("f1", "push_screen('settings')", "Settings"),
+        Binding("f2", "push_screen('history')", "History"),
     ]
 
     SCREENS = {

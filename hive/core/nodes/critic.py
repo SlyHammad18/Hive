@@ -1,10 +1,12 @@
-import asyncio
 import json
 import re
 
 from hive.core.config import load_config
 from hive.core.graph.state import CritiqueResult, HiveState
 from hive.core.llm import complete
+from hive.core.log import get_logger
+
+_log = get_logger("nodes.critic")
 
 _CRITIC_SYSTEM_PROMPT = (
     "You are a critical reviewer of research answers. "
@@ -36,11 +38,13 @@ def _parse_critique(content: str) -> CritiqueResult | None:
     return None
 
 
-def critic_node(state: HiveState) -> dict:
+async def critic_node(state: HiveState) -> dict:
     synthesis = state.get("synthesis", "")
     query = state.get("query", "")
+    _log.debug("critic_node: synthesis_len=%d", len(synthesis))
 
     if not synthesis:
+        _log.debug("  no synthesis to review")
         return {
             "critique": CritiqueResult(
                 issues=["No synthesis to review."],
@@ -61,13 +65,16 @@ def critic_node(state: HiveState) -> dict:
             },
         ]
         try:
-            content, _ = asyncio.run(complete(messages, model, temperature=0.3))
+            content, _ = await complete(messages, model, temperature=0.3)
             parsed = _parse_critique(content)
             if parsed is not None:
+                _log.debug("  LLM critique: confidence=%.2f issues=%d", parsed.confidence, len(parsed.issues))
                 return {"critique": parsed}
-        except Exception:
-            pass
+            _log.warning("  LLM response did not parse as critique")
+        except Exception as e:
+            _log.warning("  LLM call failed: %s", e)
 
+    _log.debug("  using fallback high-confidence critique")
     return {
         "critique": CritiqueResult(
             issues=[],

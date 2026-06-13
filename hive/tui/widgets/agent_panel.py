@@ -1,5 +1,7 @@
+from textual.app import ComposeResult
 from textual.reactive import reactive
-from textual.widgets import Tree
+from textual.containers import VerticalScroll
+from textual.widgets import Static
 
 _NODE_NAMES = ["plan", "browse", "research", "synthesize", "critique"]
 _STATUS_ICONS = {
@@ -10,51 +12,48 @@ _STATUS_ICONS = {
 }
 
 
-class AgentPanel(Tree[dict]):
+def _icon(status: str) -> str:
+    return _STATUS_ICONS.get(status, "◌")
+
+
+def _safe_id(name: str) -> str:
+    return "agent-" + name.replace("[", "-").replace("]", "")
+
+
+class AgentPanel(VerticalScroll):
     agent_statuses: reactive[dict[str, str]] = reactive({}, always_update=True)
 
     def __init__(self) -> None:
-        super().__init__("Orchestrator")
-        self._nodes: dict[str, Tree[dict].NodeType] = {}
+        super().__init__(id="agent-panel")
+        self._lines: dict[str, Static] = {}
         self._browse_counter = 0
 
-    def on_mount(self) -> None:
-        self.root.expand()
+    def compose(self) -> ComposeResult:
+        yield Static("Agents", classes="section-header")
         for name in _NODE_NAMES:
-            node = self.root.add(f"{_STATUS_ICONS['waiting']} {name.capitalize()}", data={"agent": name, "status": "waiting"})
-            self._nodes[name] = node
+            line = Static(f"{_icon('waiting')} {name.capitalize()}", id=_safe_id(name))
+            self._lines[name] = line
+            yield line
 
     def watch_agent_statuses(self, statuses: dict[str, str]) -> None:
         for name, status in statuses.items():
             if name == "browse" and status == "running":
                 self._browse_counter += 1
-                count = self._browse_counter
-                child = self._nodes["browse"].add(
-                    f"{_STATUS_ICONS['running']} browse[{count}]",
-                    data={"agent": f"browse[{count}]", "status": "running"},
-                )
-                self._nodes[f"browse[{count}]"] = child
-            elif name.startswith("browse[") and name in self._nodes:
-                node = self._nodes[name]
-                icon = _STATUS_ICONS.get(status, "◌")
-                node.label = f"{icon} {name}"
-                node.data["status"] = status
-            elif name in self._nodes:
-                node = self._nodes[name]
-                icon = _STATUS_ICONS.get(status, "◌")
-                node.label = f"{icon} {name.capitalize()}"
-                node.data["status"] = status
+                label = f"browse[{self._browse_counter}]"
+                line = Static(f"{_icon('running')} {label}", id=_safe_id(label))
+                self._lines[label] = line
+                self.mount(line, before=self._lines.get("research"))
+            elif name in self._lines:
+                self._lines[name].update(f"{_icon(status)} {name.capitalize() if name in _NODE_NAMES else name}")
 
     def reset(self) -> None:
         self._browse_counter = 0
-        for name, node in list(self._nodes.items()):
-            if name.startswith("browse["):
+        for key, line in list(self._lines.items()):
+            if key.startswith("browse["):
                 try:
-                    node.remove()
+                    line.remove()
                 except Exception:
                     pass
-                del self._nodes[name]
+                del self._lines[key]
             else:
-                icon = _STATUS_ICONS["waiting"]
-                node.label = f"{icon} {name.capitalize()}"
-                node.data["status"] = "waiting"
+                line.update(f"{_icon('waiting')} {key.capitalize()}")

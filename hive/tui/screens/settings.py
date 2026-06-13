@@ -6,6 +6,9 @@ from textual.widgets import Button, Input, Label, Select, Static
 
 from hive.core.config import load_config, save_config, apply_config, mask_key
 from hive.core.llm import fetch_provider_models, list_available_models
+from hive.core.log import get_logger
+
+_log = get_logger("settings")
 
 
 def _provider_from_model(model: str) -> str:
@@ -115,12 +118,15 @@ class SettingsScreen(Screen[None]):
             val = inp.value.strip()
             if val:
                 providers[key] = val
+        _log.debug("_rebuild_models: providers=%s", set(providers.keys()))
         config = {"providers": providers}
         models = list_available_models(config)
         saved_cfg = load_config()
         saved_model = saved_cfg.get("defaults", {}).get("model", "")
         if saved_model and saved_model not in models:
+            _log.debug("  prepending saved model %s", saved_model)
             models.insert(0, saved_model)
+        _log.debug("  final models (%d): %s", len(models), models)
         options = [(m, m) for m in models]
         self.models_available = options
 

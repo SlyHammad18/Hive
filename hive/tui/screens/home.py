@@ -10,7 +10,7 @@ class HomeScreen(Screen[None]):
         yield Header()
         yield Label(
             "hive — research assistant\n\nEnter a query below to start researching.\n\n"
-            "Press s for settings, h for history, q to quit.",
+            "F1 settings | F2 history | q quit",
             id="home-label",
         )
         yield Input(id="home-query", placeholder="Enter a research query...")
