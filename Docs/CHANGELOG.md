@@ -12,6 +12,8 @@ Versioning: [SemVer](https://semver.org/)
 
 ### Added
 
+- [TASK-017] Chat widget with real-time streaming token display and Markdown rendering via rich
+- [TASK-016] Agent panel widget with status tree driven by LangGraph astream_events
 - [TASK-015] Critic node that reviews synthesis quality and triggers replan loop via conditional routing
 - [TASK-014] Synthesizer node that composes research notes into a coherent cited final answer
 - [TASK-013] Researcher node that extracts facts from sources with inline citation tracking via LLM
