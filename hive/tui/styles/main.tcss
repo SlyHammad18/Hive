@@ -73,3 +73,30 @@ Input {
     margin-top: 2;
     width: 20;
 }
+
+#citations-bar {
+    height: 3;
+    background: #252742;
+    padding: 0 1;
+    align: left middle;
+}
+
+#citations-bar Button {
+    margin: 0 1;
+    min-width: 4;
+}
+
+.citations-spacer {
+    width: 1;
+}
+
+#status-bar {
+    height: 1;
+    background: #2d2f4a;
+    padding: 0 2;
+}
+
+.status-item {
+    margin: 0 2;
+    color: #8b8fa8;
+}

@@ -12,6 +12,8 @@ Versioning: [SemVer](https://semver.org/)
 
 ### Added
 
+- [TASK-019] Status bar widget showing model name, token usage, and estimated cost
+- [TASK-018] Citations widget with clickable numbered badges opening URLs in browser
 - [TASK-017] Chat widget with real-time streaming token display and Markdown rendering via rich
 - [TASK-016] Agent panel widget with status tree driven by LangGraph astream_events
 - [TASK-015] Critic node that reviews synthesis quality and triggers replan loop via conditional routing
