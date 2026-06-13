@@ -113,11 +113,35 @@ def test_browser_node_partial_fetch_failure() -> None:
     assert result["browser_results"][1].text == ""
 
 
-def test_researcher_node() -> None:
+def test_researcher_node_no_sources() -> None:
     state = _make_state()
     result = researcher_node(state)
+    assert result["research_notes"] == "No source materials provided."
+    assert result["citations"] == []
+
+
+def test_researcher_node_with_sources() -> None:
+    br = BrowserResult(sub_query="q", url="https://a.com", title="Page A", snippet="snippet A", text="Some interesting facts about AI.")
+    state = _make_state(browser_results=[br])
+    result = researcher_node(state)
     assert "research_notes" in result
-    assert result["research_notes"]
+    assert len(result["research_notes"]) > 0
+    assert "citations" in result
+    assert len(result["citations"]) == 1
+    assert result["citations"][0].url == "https://a.com"
+    assert result["citations"][0].agent == "Researcher"
+
+
+def test_researcher_node_citations_are_indexed() -> None:
+    brs = [
+        BrowserResult(sub_query="q1", url="https://a.com", title="Page A", snippet="snippet A", text="Content A."),
+        BrowserResult(sub_query="q2", url="https://b.com", title="Page B", snippet="snippet B", text="Content B."),
+    ]
+    state = _make_state(browser_results=brs)
+    result = researcher_node(state)
+    assert len(result["citations"]) == 2
+    assert result["citations"][0].index == 1
+    assert result["citations"][1].index == 2
 
 
 def test_synthesizer_node() -> None:
