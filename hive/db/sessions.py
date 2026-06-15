@@ -98,6 +98,9 @@ async def get_async_connection() -> aiosqlite.Connection:
 _write_queue: asyncio.Queue | None = None
 _write_worker_task: asyncio.Task[None] | None = None
 
+_SENTINEL: tuple[str, None] = ("__SHUTDOWN__", None)
+_shutting_down: bool = False
+
 
 def _get_queue() -> asyncio.Queue:
     global _write_queue
@@ -110,35 +113,75 @@ async def _write_worker_loop() -> None:
     conn = await get_async_connection()
     try:
         while True:
-            sql, params = await _get_queue().get()
+            item = await _get_queue().get()
+            if item is _SENTINEL:
+                _get_queue().task_done()
+                _log.debug("Write worker received sentinel, shutting down")
+                break
+            sql, params = item
             try:
                 await conn.execute(sql, params)
                 await conn.commit()
             except Exception as exc:
-                _log.error("Write worker error: %s", exc)
+                _log.error("Write worker error: %s", exc, exc_info=True)
             finally:
                 _get_queue().task_done()
     except asyncio.CancelledError:
-        pass
+        _log.warning("Write worker was cancelled — pending items may be lost (queue size: %s)", _get_queue().qsize())
     finally:
         await conn.close()
+        _log.debug("Write worker connection closed")
 
 
 def _ensure_worker() -> None:
     global _write_worker_task
+    if _shutting_down:
+        _log.warning("_ensure_worker called during shutdown — refusing to create new worker")
+        return
     if _write_worker_task is None or _write_worker_task.done():
         _write_worker_task = asyncio.create_task(_write_worker_loop())
+        _log.debug("Write worker task created")
 
 
 def reset_queue() -> None:
     global _write_queue, _write_worker_task
+    _log.debug("reset_queue called")
     if _write_worker_task is not None and not _write_worker_task.done():
         _write_worker_task.cancel()
     _write_queue = None
     _write_worker_task = None
 
 
+async def flush() -> None:
+    if _write_queue is not None:
+        _log.debug("Flushing write queue (size: %s)", _write_queue.qsize())
+        await _write_queue.join()
+
+
+async def shutdown() -> None:
+    global _write_queue, _write_worker_task, _shutting_down
+    _shutting_down = True
+    _log.info("shutdown: draining write queue...")
+    if _write_queue is not None:
+        qsize = _write_queue.qsize()
+        _log.info("shutdown: queue size before drain: %s", qsize)
+        await _write_queue.put(_SENTINEL)
+    if _write_worker_task is not None and not _write_worker_task.done():
+        try:
+            await _write_worker_task
+        except asyncio.CancelledError:
+            _log.warning("shutdown: write worker was cancelled during drain")
+    else:
+        _log.debug("shutdown: write worker already done or None")
+    _write_queue = None
+    _write_worker_task = None
+    _log.info("shutdown complete")
+
+
 async def _enqueue(sql: str, *params: Any) -> None:
+    if _shutting_down:
+        _log.warning("_enqueue called during shutdown — dropping write: %s", sql[:80])
+        return
     _ensure_worker()
     await _get_queue().put((sql, params))
 

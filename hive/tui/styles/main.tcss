@@ -1,143 +1,756 @@
+/* ═══════════════════════════════════════════════════════════
+   HIVE — Main Theme
+   Deep dark base + amber/gold accents + cool grey text tiers
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Base ──────────────────────────────────────────────────── */
+
 Screen {
-    background: #1a1b2e;
+    background: #0d0f1a;
+    color: #e2e8f0;
 }
 
 Header {
-    background: #2d2f4a;
-    color: #c0c4e0;
+    background: #131627;
+    color: #94a3b8;
+    dock: top;
+    height: 1;
 }
 
 Footer {
-    background: #2d2f4a;
-    color: #8b8fa8;
+    background: #131627;
+    color: #64748b;
+    dock: bottom;
+    height: 1;
 }
 
-#home-label {
-    content-align: center middle;
-    color: #c0c4e0;
+/* ── Typography ────────────────────────────────────────────── */
+
+.title {
+    color: #f59e0b;
     text-style: bold;
+}
+
+.subtitle {
+    color: #94a3b8;
+}
+
+.muted {
+    color: #64748b;
+}
+
+.accent {
+    color: #f59e0b;
+}
+
+.success {
+    color: #22c55e;
+}
+
+.error {
+    color: #ef4444;
+}
+
+Label {
+    color: #e2e8f0;
+    height: auto;
+}
+
+Container {
+    height: auto;
+}
+
+.section-header {
+    color: #f59e0b;
+    text-style: bold;
+    padding: 0;
+    margin-bottom: 1;
+    height: auto;
+}
+
+/* ── Cards / Panels ────────────────────────────────────────── */
+
+.card {
+    background: #1a1d2e;
+    border: round #2a2d42;
+    padding: 1 2;
+}
+
+.panel {
+    background: #111425;
+    border: round #2a2d42;
+    padding: 0 1;
+}
+
+/* ── Inputs ────────────────────────────────────────────────── */
+
+Input {
+    background: #1a1d2e;
+    color: #e2e8f0;
+    border: tall #2a2d42;
+    padding: 0 1;
+    width: 100%;
+    height: 3;
+}
+
+Input:focus {
+    border: tall #f59e0b;
+}
+
+Input.-invalid {
+    border: tall #ef4444;
+}
+
+.search-input {
+    background: #1a1d2e;
+    border: round #2a2d42;
+    width: 100%;
+    margin: 1 0;
+}
+
+.search-input:focus {
+    border: round #f59e0b;
+}
+
+.hero-input {
+    background: #1a1d2e;
+    border: heavy #2a2d42;
+    width: 80;
+    margin: 1 0;
+}
+
+.hero-input:focus {
+    border: heavy #f59e0b;
+}
+
+/* ── Buttons ───────────────────────────────────────────────── */
+
+Button {
+    background: #1a1d2e;
+    color: #e2e8f0;
+    border: tall #2a2d42;
+    margin: 0 1;
+    min-width: 16;
+    height: 3;
+}
+
+Button:hover {
+    background: #252940;
+    border: tall #f59e0b;
+}
+
+Button:focus {
+    border: tall #f59e0b;
+}
+
+Button.-primary {
+    background: #f59e0b;
+    color: #0d0f1a;
+    border: tall #fbbf24;
+    text-style: bold;
+}
+
+Button.-primary:hover {
+    background: #fbbf24;
+    border: tall #fcd34d;
+}
+
+/* ── Select ────────────────────────────────────────────────── */
+
+Select {
+    width: 100%;
+    height: 3;
+    margin-bottom: 0;
+}
+
+SelectCurrent {
+    background: #1a1d2e;
+    border: tall #2a2d42;
+    width: 100%;
+    height: 3;
+    padding: 0 1;
+}
+
+SelectCurrent:focus {
+    border: tall #f59e0b;
+}
+
+SelectOverlay {
+    background: #1a1d2e;
+    border: tall #2a2d42;
+}
+
+OptionList > .option-list--option-highlighted {
+    background: #252940;
+    color: #f59e0b;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HOME SCREEN
+   ═══════════════════════════════════════════════════════════ */
+
+#home-container {
+    align: center middle;
     width: 100%;
     height: 100%;
 }
 
+#home-inner {
+    width: auto;
+    max-width: 90;
+    height: auto;
+    align: center middle;
+    content-align: center middle;
+}
+
+#home-logo {
+    color: #f59e0b;
+    text-style: bold;
+    content-align: center middle;
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#home-tagline {
+    color: #94a3b8;
+    content-align: center middle;
+    width: 100%;
+    margin-bottom: 2;
+}
+
+#home-query {
+    background: #1a1d2e;
+    border: heavy #2a2d42;
+    width: 72;
+    margin-bottom: 2;
+}
+
+#home-query:focus {
+    border: heavy #f59e0b;
+}
+
+#home-hints {
+    content-align: center middle;
+    color: #64748b;
+    width: 100%;
+}
+
+.keybadge {
+    color: #f59e0b;
+    text-style: bold;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SHARED PAGE ELEMENTS (for consistent theme)
+   ═══════════════════════════════════════════════════════════ */
+
+.page-logo {
+    color: #f59e0b;
+    text-style: bold;
+    content-align: center middle;
+    width: 100%;
+    margin-bottom: 1;
+}
+
+.page-title {
+    color: #e2e8f0;
+    text-style: bold;
+    content-align: center middle;
+    width: 100%;
+    margin-bottom: 0;
+}
+
+.page-subtitle {
+    color: #64748b;
+    content-align: center middle;
+    width: 100%;
+    margin-bottom: 2;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SETUP & SETTINGS SCREENS
+   ═══════════════════════════════════════════════════════════ */
+
 #setup-scroll {
-    padding: 2 4;
+    padding: 2 4 4 4;
     height: 100%;
 }
 
-#setup-title {
-    color: #c0c4e0;
+#settings-scroll {
+    padding: 2 4 4 4;
+    height: 100%;
+}
+
+#setup-header {
+    width: 100%;
+    content-align: center middle;
+    margin-bottom: 3;
+    height: auto;
+}
+
+#settings-header {
+    width: 100%;
+    content-align: center middle;
+    margin-bottom: 3;
+    height: auto;
+}
+
+.form-card {
+    background: #1a1d2e;
+    border: round #2a2d42;
+    padding: 2 3;
+    margin-bottom: 2;
+    width: 100%;
+    height: auto;
+}
+
+.field-label-standalone {
+    color: #94a3b8;
     text-style: bold;
-    padding-bottom: 0;
-}
-
-#setup-subtitle {
-    color: #8b8fa8;
-    padding-bottom: 2;
-}
-
-.section-header {
-    color: #7c82b0;
-    text-style: bold;
-    padding-top: 1;
-    padding-bottom: 1;
-}
-
-.field-row {
-    height: 3;
     margin-bottom: 1;
+    height: auto;
+    padding: 0;
 }
 
-.field-label {
-    width: 20;
-    color: #c0c4e0;
-    content-align: left middle;
-    padding-left: 1;
+.field-input-row {
+    height: 3;
+    margin-bottom: 2;
+    width: 100%;
 }
 
-Input {
-    width: 40;
+.field-input-wide {
+    width: 1fr;
 }
 
-.valid-icon {
+.valid-icon-inline {
     width: 3;
-    content-align: left middle;
+    min-width: 3;
+    content-align: center middle;
+    color: #22c55e;
+    text-style: bold;
+}
+
+#settings-button-container {
+    width: 100%;
+    height: auto;
+    margin-top: 2;
+    margin-bottom: 3;
+    padding: 0;
+}
+
+#settings-buttons {
+    height: 3;
+    width: 100%;
+    align: center middle;
+    content-align: center middle;
 }
 
 #model-select {
-    width: 44;
+    width: 100%;
+    height: 3;
     margin-bottom: 1;
 }
 
-#save-btn {
-    margin-top: 2;
-    width: 20;
-}
-
-#citations-bar {
+SelectCurrent {
+    width: 100%;
     height: 3;
-    background: #252742;
-    padding: 0 1;
-    align: left middle;
 }
 
-#citations-bar Button {
+#settings-buttons {
+    margin-top: 2;
+    height: 3;
+    align: right middle;
+}
+
+#save-btn {
+    min-width: 20;
     margin: 0 1;
-    min-width: 4;
 }
 
-.citations-spacer {
-    width: 1;
+#cancel-btn {
+    background: transparent;
+    color: #94a3b8;
+    border: tall #2a2d42;
+    min-width: 20;
+    margin: 0 1;
 }
 
-#status-bar {
+#cancel-btn:hover {
+    color: #e2e8f0;
+    border: tall #64748b;
+}
+
+#setup-hints {
     height: 1;
-    background: #2d2f4a;
+    background: #131627;
     padding: 0 2;
+    color: #64748b;
+    content-align: center middle;
+    dock: bottom;
 }
 
-.status-item {
-    margin: 0 2;
-    color: #8b8fa8;
-}
-
-#research-header {
+#settings-hints {
     height: 1;
+    background: #131627;
+    padding: 0 2;
+    color: #64748b;
+    content-align: center middle;
+    dock: bottom;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESEARCH SCREEN
+   ═══════════════════════════════════════════════════════════ */
+
+#research-title-bar {
+    height: 1;
+    min-height: 1;
+    background: #131627;
+    padding: 0 2;
+    dock: top;
+}
+
+.title-brand {
+    color: #f59e0b;
+    text-style: bold;
+    width: auto;
+    margin-right: 3;
 }
 
 #research-body {
     height: 1fr;
+    margin: 0;
+    padding: 0;
+    max-height: 90%;
 }
 
 #left-panel {
-    width: 30%;
+    width: 32;
+    min-width: 28;
     height: 100%;
-    border-right: solid #2d2f4a;
-    padding: 0 1;
+    background: #111425;
+    border-right: solid #2a2d42;
+    padding: 0;
+    overflow-y: hidden;
 }
 
 #right-panel {
-    width: 70%;
+    width: 1fr;
     height: 100%;
-    padding: 0 1;
+    background: #0d0f1a;
+    padding: 0 1 0 1;
 }
 
 #input-bar {
+    height: 5;
+    min-height: 3;
+    max-height: 7;
+    background: #131627;
+    padding: 1 2;
+    align: left middle;
+}
+
+#model-label {
+    width: 7;
     height: 3;
-    background: #2d2f4a;
+    color: #94a3b8;
+    content-align: right middle;
+    margin-right: 1;
+}
+
+#model-select-input {
+    width: 28;
+    height: 3;
+    min-height: 3;
+    margin-right: 2;
+}
+
+#model-select-input SelectCurrent {
+    height: 3;
+    min-height: 3;
     padding: 0 1;
-    align: center middle;
 }
 
 #query-input {
+    width: 1fr;
+    height: 3;
+    background: #1a1d2e;
+    border: tall #2a2d42;
+}
+
+#query-input:focus {
+    border: tall #f59e0b;
+}
+
+#action-hints {
+    height: 1;
+    min-height: 1;
+    background: #131627;
+    padding: 0 2;
+    color: #64748b;
+    dock: bottom;
+}
+
+/* ── Status Bar ────────────────────────────────────────────── */
+
+#status-bar {
+    height: 1;
+    background: #131627;
+    padding: 0 2;
+    dock: top;
+}
+
+.status-item {
+    margin: 0 1;
+    color: #94a3b8;
+}
+
+.status-sep {
+    color: #2a2d42;
+    margin: 0 1;
+}
+
+.status-model {
+    color: #f59e0b;
+    text-style: bold;
+    margin: 0 1;
+}
+
+.status-tokens {
+    color: #94a3b8;
+    margin: 0 1;
+}
+
+.status-cost {
+    color: #22c55e;
+    margin: 0 1;
+}
+
+/* ── Agent Panel ───────────────────────────────────────────── */
+
+#agent-panel {
+    height: auto;
+    max-height: 35%;
+    min-height: 20%;
+    padding: 1;
+    background: #111425;
+    overflow-y: auto;
+}
+
+.agent-section-title {
+    color: #f59e0b;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+.agent-row {
+    height: 1;
+    margin: 0;
+    padding: 0 1;
+}
+
+.agent-icon-waiting {
+    color: #64748b;
+}
+
+.agent-icon-running {
+    color: #f59e0b;
+    text-style: bold;
+}
+
+.agent-icon-done {
+    color: #22c55e;
+}
+
+.agent-icon-error {
+    color: #ef4444;
+}
+
+.agent-name {
+    color: #e2e8f0;
+    margin-left: 1;
+}
+
+.agent-name-muted {
+    color: #64748b;
+    margin-left: 1;
+}
+
+.agent-time {
+    color: #64748b;
+    margin-left: 1;
+}
+
+.agent-connector {
+    color: #2a2d42;
+    width: 4;
+}
+
+/* ── Citations Panel ───────────────────────────────────────── */
+
+#citations-panel {
+    height: auto;
+    min-height: 25%;
+    max-height: 80%;
+    padding: 1;
+    background: #111425;
+    border-top: solid #2a2d42;
+    overflow-y: auto;
+}
+
+.citation-title {
+    color: #f59e0b;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+.citation-entry {
+    padding: 0 1;
+    margin-bottom: 1;
+    height: auto;
+}
+
+.citation-entry:hover {
+    background: #1a1d2e;
+}
+
+.citation-index {
+    color: #f59e0b;
+    text-style: bold;
+}
+
+.citation-label {
+    color: #e2e8f0;
+}
+
+.citation-domain {
+    color: #64748b;
+    padding-left: 4;
+}
+
+/* ── Chat ──────────────────────────────────────────────────── */
+
+#chat-container {
+    height: 1fr;
+    width: 100%;
+    background: #0d0f1a;
+    overflow-y: auto;
+}
+
+#chat-log {
+    background: #0d0f1a;
+    height: auto;
+    scrollbar-color: #2a2d42;
+    scrollbar-color-hover: #f59e0b;
+    scrollbar-color-active: #fbbf24;
+    padding: 0;
+}
+
+.msg-user-header {
+    color: #f59e0b;
+    text-style: bold;
+    margin-top: 1;
+}
+
+.msg-assistant-header {
+    color: #22c55e;
+    text-style: bold;
+    margin-top: 1;
+}
+
+.msg-system-header {
+    color: #64748b;
+    text-style: bold;
+    margin-top: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HISTORY SCREEN
+   ═══════════════════════════════════════════════════════════ */
+
+#history-scroll {
+    padding: 2 4;
+    height: 100%;
+}
+
+#history-header {
+    width: 100%;
+    content-align: center middle;
+    margin-bottom: 3;
+}
+
+#history-search {
+    margin: 0 0 2 0;
+    background: #1a1d2e;
+    border: heavy #2a2d42;
     width: 100%;
 }
 
-.panel {
-    background: #1a1b2e;
+#history-search:focus {
+    border: heavy #f59e0b;
 }
 
-Tree {
+#history-hints {
+    height: 1;
+    background: #131627;
+    padding: 0 2;
+    color: #64748b;
+    content-align: center middle;
+    dock: bottom;
+}
+
+#session-list {
+    background: #0d0f1a;
+    padding: 0 0;
+    margin-bottom: 2;
+}
+
+ListView {
+    background: #0d0f1a;
+    border: none;
+}
+
+ListView > ListItem {
+    background: #1a1d2e;
+    padding: 1 2;
     height: auto;
-    max-height: 50%;
+    min-height: 4;
+    margin-bottom: 1;
+    border: heavy #2a2d42;
+}
+
+ListView > ListItem:hover {
+    background: #252940;
+    border: heavy #f59e0b;
+}
+
+ListView > ListItem.-highlight {
+    background: #252940;
+    border: heavy #f59e0b;
+}
+
+.session-query {
+    color: #e2e8f0;
+    text-style: bold;
+}
+
+.session-meta {
+    color: #64748b;
+}
+
+.empty-state {
+    content-align: center middle;
+    color: #64748b;
+    padding: 4 2;
+    text-align: center;
+}
+
+/* ── Scrollbar Theme ───────────────────────────────────────── */
+
+* {
+    scrollbar-background: #0d0f1a;
+    scrollbar-color: #2a2d42;
+    scrollbar-color-hover: #f59e0b;
+    scrollbar-color-active: #fbbf24;
+    scrollbar-size-vertical: 1;
 }

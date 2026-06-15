@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
@@ -91,6 +92,7 @@ async def test_list_sessions_ordered() -> None:
     id_a = str(uuid.uuid4())
     id_b = str(uuid.uuid4())
     await db.create_session(session_id=id_a, query="first")
+    await asyncio.sleep(0.01)
     await db.create_session(session_id=id_b, query="second")
     await db._get_queue().join()
 
