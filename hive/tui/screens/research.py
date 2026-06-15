@@ -12,6 +12,7 @@ from textual.widgets import Button, Header, Input
 from hive.core.config import load_config
 from hive.core.graph.graph import compile_graph_async
 from hive.core.graph.state import TokenUsage
+from hive.db.sessions import SessionInfo, load_session
 from hive.tui.widgets.agent_panel import AgentPanel
 from hive.tui.widgets.chat import ChatWidget
 from hive.tui.widgets.citations import CitationsWidget
@@ -29,9 +30,10 @@ class ResearchScreen(Screen[None]):
         Binding("n", "new_session", "New"),
     ]
 
-    def __init__(self, initial_query: str = "") -> None:
+    def __init__(self, initial_query: str = "", session_id: str | None = None) -> None:
         super().__init__()
         self._initial_query = initial_query
+        self._session_id = session_id
         self._research_task: asyncio.Task[None] | None = None
         self._agent_statuses: dict[str, str] = {}
         self.agent_panel = AgentPanel()
@@ -41,7 +43,7 @@ class ResearchScreen(Screen[None]):
         self.query_input = Input(id="query-input", placeholder="Enter a research query...")
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield Header(show_clock=False)
         with Horizontal(id="research-header"):
             yield self.status_bar
         with Horizontal(id="research-body"):
@@ -53,7 +55,14 @@ class ResearchScreen(Screen[None]):
         with Horizontal(id="input-bar"):
             yield self.query_input
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
+        if self._session_id:
+            session = await load_session(self._session_id)
+            if session:
+                self._display_session(session)
+            else:
+                self.chat.add_message("assistant", "Session not found.")
+            return
         cfg = load_config()
         defaults = cfg.get("defaults", {})
         model = defaults.get("model", "")
@@ -62,6 +71,23 @@ class ResearchScreen(Screen[None]):
         if self._initial_query:
             self.query_input.value = self._initial_query
             self._start_research(self._initial_query)
+
+    def _display_session(self, session: SessionInfo) -> None:
+        self.query_input.disabled = True
+        self.query_input.placeholder = "Read-only: viewing past session"
+        self.status_bar.set_model(session.model)
+        tu = session.token_usage
+        self.status_bar.set_token_usage(
+            tu.get("prompt_tokens", 0),
+            tu.get("completion_tokens", 0),
+            tu.get("total_tokens", 0),
+        )
+        total = tu.get("prompt_tokens", 0) + tu.get("completion_tokens", 0)
+        self.status_bar.set_cost(total * _ESTIMATED_COST_PER_TOKEN)
+        for msg in session.messages:
+            self.chat.add_message(msg.role, msg.content)
+        if session.citations:
+            self.citations_widget.set_citations(session.citations)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         query = event.value.strip()

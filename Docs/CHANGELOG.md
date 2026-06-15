@@ -6,6 +6,11 @@ Versioning: [SemVer](https://semver.org/)
 
 ## [Unreleased]
 
+### Added
+
+- [TASK-021] SQLite session persistence with async write queue and LangGraph checkpointer integration
+- [TASK-022] History screen with session list, search/filter, and read-only session viewing
+
 ### Fixed
 
 - [TASK-006] Settings screen no longer crashes when saved model is not in fallback model list
